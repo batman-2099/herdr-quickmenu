@@ -65,9 +65,9 @@ The runner exercises the validation cases in a temporary, undocked mod using Her
 
 ## Privacy and security
 
-No analytics, background polling, or startup network request. Browser/search actions temporarily overwrite the system clipboard with a sentinel, request native Copy, and read the result. Another writer can replace the sentinel: the browser could open an unrelated URL or send unrelated text to DuckDuckGo without another prompt.
+No analytics, background polling, or startup network request. On an explicit URL or search action, Herdr writes a clipboard sentinel, checks that Klipper saw it, then requests native Copy. The mod reads the replacement from Herdr's live clipboard, not Klipper history. Another writer can race the copy: the browser could open an unrelated URL or send unrelated text to DuckDuckGo.
 
-On certain failures the mod re-reads the clipboard and restores the previous text only if it still sees its sentinel. The check and write are not atomic. Restoration passes the previous text as a `qdbus6` process argument, potentially visible to other local processes. Non-text formats and clipboard history are not restored. Do not use these actions with sensitive clipboard contents.
+On failure, Herdr attempts to restore previous text only if its sentinel is still on the clipboard. Previous text is not passed to a process as an argument. The check and write are not atomic; non-text formats and clipboard history are not restored. Do not use these actions with sensitive clipboard contents.
 
 The default terminal-menu integration does not execute Git or contact remote machines. Inherited space-menu code can run read-only Git commands if another mod explicitly opens this as a space menu; that is not the advertised integration. No local configuration, editor declarations, diagnostic dumps, or installed icon files are distributed.
 

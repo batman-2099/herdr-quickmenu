@@ -18,7 +18,7 @@ Open selected URL accepts one complete HTTP(S) URL and launches the local defaul
 
 Copy queues popup closure, focus of the clicked terminal, then native terminal.copy. Paste and Select all act on that terminal. Never simulate Ctrl+C, since it may interrupt a running program. Terminal-owned selections and application-owned highlights differ: in mouse-capturing applications, instruct the user to try Shift-drag and Shift-right-click, without claiming that internal application selection is accessible.
 
-Open local folder in Dolphin uses the clicked terminal's current directory only after confirming local machine ownership and a local absolute path. Never treat remote paths as local, and never substitute the initial space directory for an unknown current directory.
+Open local folder in Dolphin uses the clicked terminal's foreground process cwd or its matching pane's live cwd, after confirming local machine ownership and a local absolute path. Neither the terminal's launch cwd nor the space's starting folder is a substitute.
 
 ## Built from
 
@@ -28,7 +28,7 @@ Start from Herdr's shipped menu, preserving its applicable original actions and 
 
 Set manifest placement to none. In an existing personal layout, merge the top-level property `"terminal_menu": "selected-actions-menu"`. Clone a shipped layout first if necessary, but distribute no layouts directory and do not replace the user's whole layout. No keybinding changes are required.
 
-This version's selection-text helper uses KDE Klipper via qdbus6: verify a sentinel, request a fresh native copy, and reject failure rather than using stale clipboard data. It attempts to restore prior clipboard text when the sentinel remains. GUI launches use literal arguments through kstart with xdg-open or Dolphin. Do not interpolate selected text into shell scripts. No network access or background polling is needed on startup; browser/search actions run only on user request.
+Herdr must write both the sentinel and the fresh native copy. On KWin/Wayland, writing the sentinel through Klipper advances the clipboard serial past the click that authorizes Herdr's Copy. Use Klipper read-only to confirm publication of the marker; take selection text only from the live clipboard while focus and selection still match. Attempt to restore prior text only if the sentinel remains. Launch through kstart with literal arguments to xdg-open or Dolphin, never a shell string.
 
 ## Watch out
 

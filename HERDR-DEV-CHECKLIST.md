@@ -17,16 +17,17 @@ Live official gallery checked on 2026-11-19: `https://herdr.dev/mods` redirects 
 
 - [x] User authorized publication to the intended account; `gh` authentication and API login agree on that account. No pre-existing target repository was found.
 - [x] Upstream licensing verified against Herdr v0.1.16, commit `034f8b85f7e6bb71f8ff55cb4a80c548b2578c0f`: Apache-2.0. LICENSE copied verbatim, provenance and relevant icon notices in NOTICE, modified source and manifest marked.
-- [x] Installed shipped menu matched the pinned upstream source byte-for-byte during initial preparation. The remediated package has not been installed over the active mod.
-- [x] Herdr 0.1.16 native package check passes.
-- [x] 42 validation cases passed in Herdr 0.1.16: action identity, pane ownership, guarded restoration with in-memory clipboard text, URL/search validation, and local-folder ownership/path checks.
+- [x] Installed shipped menu matched the pinned upstream source byte-for-byte during initial preparation. The active custom mod was backed up before the clipboard and cwd fixes were installed.
+- [x] Herdr 0.1.16 native checks passed for both the packaged mod and the installed copy.
+- [x] 49 validation cases passed, including delayed clipboard publication/delivery, refusal on timeout or focus loss, and cwd changes after launch. Clipboard cases use synthetic text.
+- [x] Foreground retest by the user: Open URL opened the selected URL, DuckDuckGo showed the selected query, and Dolphin opened the current directory after `cd`.
 - [x] Runtime dependencies present: `qdbus6`, `kstart`, `xdg-open`, Dolphin. Klipper's D-Bus interface responds; no private clipboard data needed for this check.
 - [x] Original live popup inspected for the preview. A separate hidden-window check of the remediated menu with a removed model pane rendered no Split or Close pane action; this did not exercise input or clipboard delivery.
 - [x] Generated declarations/editor files ignored; no raw screenshot, personal configuration, clipboard capture, credentials, or diagnostic helper is included.
 
 ## Still unverified / not claimed working
 
-- [ ] Full foreground action matrix on the exact package: selected URL/search, Copy/Paste/Select all, local-folder launch, split/zoom/close.
+- [ ] Remaining foreground action matrix on the exact package: Copy/Paste/Select all and split/zoom/close.
 - [ ] Shift-drag and Shift-right-click inside mouse-capturing applications. Copy was user-reported working in a plain terminal, not on normal Hermes-owned highlights. This workaround is documented, not proven here.
 - [ ] Live no-selection and stale-target refusal: remove a parent while “Send back” is highlighted, move a terminal between panes, and change focus during extraction. Check model panes, layout blocks, and temporarily shown terminals separately.
 

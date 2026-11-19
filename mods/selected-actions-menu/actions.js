@@ -42,7 +42,8 @@ export function localFolder(target, allPanes = panes(), allSpaces = spaces(), al
   const pane = allPanes.find(p => p.pane === target.pane && p.terminal === target.terminal);
   const space = pane && allSpaces.find(s => (s.tabs ?? []).some(t => t.id === pane.tab));
   const term = allTerms.find(t => t.address === target.terminal);
-  const cwd = term?.cwd || pane?.cwd;
+  // The core record's top-level cwd is the launch directory, not the cwd after cd.
+  const cwd = term?.foreground?.cwd ?? pane?.cwd;
   if (!pane || !space || space.machine !== null || !term || typeof cwd !== "string" ||
       !cwd.startsWith("/") || cwd.startsWith("//") || /[\u0000-\u001f\u007f]/.test(cwd)) return null;
   return cwd;
@@ -73,9 +74,22 @@ export async function focusTarget(target, cx) {
     throw new Error("Could not focus the clicked terminal; nothing was sent.");
 }
 
-export async function restoreIfPending(clipboard, marker, previous) {
-  if (await clipboard("getClipboardContents") === marker)
-    await clipboard("setClipboardContents", [previous]);
+export function restoreIfPending(cx, marker, previous) {
+  if (typeof previous === "string" && cx.read_from_clipboard() === marker)
+    cx.write_to_clipboard(previous);
+}
+
+// Klipper's getClipboardContents reads history item 0. Observe both the marker
+// and its replacement on the terminal's live clipboard instead.
+export async function waitForClipboard(cx, marker, expectMarker, stillSelected, published) {
+  for (let elapsed = 0; elapsed <= 1000; elapsed += 25) {
+    if (!stillSelected()) throw new Error("Focus or selection changed. Nothing was opened.");
+    const text = cx.read_from_clipboard();
+    if (text && (text === marker) === expectMarker && (!published || await published())) return text;
+    if (elapsed < 1000) await cx.sleep(25);
+  }
+  throw new Error(expectMarker ? "Clipboard verification failed. Nothing was opened." :
+    "Native Copy did not deliver the selected text. Nothing was opened.");
 }
 
 export async function selectedText(target, cx) {
@@ -85,35 +99,27 @@ export async function selectedText(target, cx) {
   const stillSelected = () => hasFocus(target) && JSON.stringify(selectionOf(target.terminal)) === signature;
   await focusTarget(target, cx);
   if (!stillSelected()) throw new Error("Focus or selection changed; select it again.");
-  // This API exposes endpoints, not text. Use KDE's installed clipboard
-  // service for a verified sentinel round trip: native context clipboard writes
-  // did not reliably persist in background Wayland tests. Never use PRIMARY or
-  // an unverified old clipboard as selection text. All calls are click-only.
-  const clipboard = async (method, args = []) => {
-    const result = await exec("qdbus6", ["org.kde.klipper", "/klipper", method, ...args], { timeout: 3000 });
-    if (result.code !== 0) throw new Error("KDE clipboard service is unavailable. Nothing was opened.");
-    return result.stdout.replace(/\n$/, "");
-  };
-  const previous = await clipboard("getClipboardContents");
+  const previous = cx.read_from_clipboard();
   const marker = "herdr-selection-pending:" + Date.now() + ":" + Math.random();
-  await clipboard("setClipboardContents", [marker]);
-  if (await clipboard("getClipboardContents") !== marker)
-    throw new Error("Clipboard verification failed. Nothing was opened.");
-  if (!stillSelected()) {
-    await restoreIfPending(clipboard, marker, previous);
-    throw new Error("Focus or selection changed. Nothing was opened.");
+  try {
+    // KWin rejects an application's Copy if a Klipper write used a newer
+    // serial than the menu click. Let Herdr own both writes; Klipper only
+    // witnesses publication of the marker, never supplies the selected text.
+    cx.write_to_clipboard(marker);
+    await waitForClipboard(cx, marker, true, stillSelected, async () => {
+      const reply = await exec("qdbus6", ["org.kde.klipper", "/klipper", "getClipboardContents"], { timeout: 3000 });
+      if (reply.code !== 0) throw new Error("KDE clipboard service is unavailable. Nothing was opened.");
+      return reply.stdout.replace(/\n$/, "") === marker;
+    });
+    if (!stillSelected() || cx.read_from_clipboard() !== marker)
+      throw new Error("Focus, selection or clipboard changed. Nothing was opened.");
+    run("terminal.copy");
+    cx.notify();
+    return await waitForClipboard(cx, marker, false, stillSelected);
+  } catch (error) {
+    restoreIfPending(cx, marker, previous);
+    throw error;
   }
-  run("terminal.copy");
-  cx.notify();
-  await cx.sleep(80);
-  const text = await clipboard("getClipboardContents");
-  if (text === marker || !text) {
-    if (text === marker) await restoreIfPending(clipboard, marker, previous);
-    throw new Error("The selected text could not be copied. Nothing was opened.");
-  }
-  if (!stillSelected())
-    throw new Error("Focus or selection changed while copying. Nothing was opened.");
-  return text;
 }
 
 export async function launchURL(url) {

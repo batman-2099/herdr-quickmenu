@@ -1,4 +1,4 @@
-import { safeURL, searchURL, localFolder, currentItem, matchesPane, restoreIfPending } from "./actions.js";
+import { safeURL, searchURL, localFolder, currentItem, matchesPane, waitForClipboard, restoreIfPending } from "./actions.js";
 export async function validate() {
   const passed = [];
   function test(name, fn) { fn(); passed.push(name); }
@@ -33,29 +33,50 @@ export async function validate() {
   test("layout block may show a model terminal", () => eq(matchesPane(
     {...target, pane:"block", modelPane:false}, panes), true));
   const spaces = [{machine:null, tabs:[{id:"tab1"}]}];
-  const terms = [{address:"t1", cwd:"/home/test/folder with ' quotes; $(id)"}];
-  test("current local cwd, literal punctuation", () => eq(localFolder(target, panes, spaces, terms), terms[0].cwd));
+  const terms = [{address:"t1", cwd:"/launch", foreground:{cwd:"/home/test/folder with ' quotes; $(id)"}}];
+  test("foreground cwd after cd, literal punctuation", () => eq(localFolder(target, panes, spaces, terms), terms[0].foreground.cwd));
+  test("pane cwd when foreground is unknown", () => eq(localFolder(target, panes, spaces,
+    [{...terms[0], foreground:null}]), panes[0].cwd));
   test("remote machine refused", () => eq(localFolder(target, panes, [{...spaces[0],machine:"remote"}], terms), null));
   test("unknown machine refused", () => eq(localFolder(target, panes, [{tabs:spaces[0].tabs}], terms), null));
   const remote = "remote/t1";
   test("remote address refused", () => eq(localFolder({...target, terminal:remote},
     [{...panes[0], terminal:remote}], spaces, [{...terms[0], address:remote}]), null));
-  test("missing live cwd never uses space folder", () => eq(localFolder(target,
-    [{...panes[0], cwd:null}], [{...spaces[0], folder:"/start"}], [{...terms[0], cwd:null}]), null));
+  test("missing live cwd never uses launch or space folder", () => eq(localFolder(target,
+    [{...panes[0], cwd:null}], [{...spaces[0], folder:"/start"}], [{...terms[0], foreground:null}]), null));
   test("composition block refused", () => eq(localFolder({...target,pane:"block"}, panes, spaces, terms), null));
   test("replaced terminal refused", () => eq(localFolder(target, [{...panes[0],terminal:"t2"}], spaces, terms), null));
-  test("URI cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],cwd:"sftp://host/home"}]), null));
-  test("relative cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],cwd:"relative"}]), null));
-  test("UNC cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],cwd:"//host/share"}]), null));
-  test("control cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],cwd:"/a\nb"}]), null));
+  test("URI cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"sftp://host/home"}}]), null));
+  test("relative cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"relative"}}]), null));
+  test("UNC cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"//host/share"}}]), null));
+  test("control cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"/a\nb"}}]), null));
+  const reads = ["old URL", undefined, "marker", "marker", "marker", "selected & text"];
+  const cx = { read_from_clipboard: () => reads.shift(), sleep: async () => {} };
+  const pending = await waitForClipboard(cx, "marker", true, () => true);
+  test("old clipboard is not proof the marker arrived", () => eq(pending, "marker"));
+  const copied = await waitForClipboard(cx, "marker", false, () => true);
+  test("delayed copy yields exact selected text", () => eq(copied, "selected & text"));
+  let observed = false;
+  const markerCx = {read_from_clipboard: () => "marker", sleep: async () => { observed = true; }};
+  await waitForClipboard(markerCx, "marker", true, () => true, () => observed);
+  test("native marker waits for independent publication", () => eq(observed, true));
+  for (const [name, read, valid] of [
+    ["unobserved marker", () => "old text", () => true],
+    ["copy never replaced marker", () => "marker", () => true],
+    ["focus lost before clipboard delivery", () => "other text", () => false],
+  ]) {
+    let refused = false;
+    try {
+      await waitForClipboard({...cx, read_from_clipboard:read}, "marker", name === "unobserved marker", valid);
+    } catch (_) { refused = true; }
+    test(name, () => eq(refused, true));
+  }
   for (const initial of ["pending", "another writer"]) {
     let text = initial;
-    const clipboard = async (method, args) => {
-      if (method === "getClipboardContents") return text;
-      if (method !== "setClipboardContents") throw new Error("Unexpected clipboard method");
-      text = args[0];
-    };
-    await restoreIfPending(clipboard, "pending", "previous");
+    restoreIfPending({
+      read_from_clipboard: () => text,
+      write_to_clipboard: value => { text = value; },
+    }, "pending", "previous");
     test("restore clipboard: " + initial, () => eq(text, initial === "pending" ? "previous" : initial));
   }
   return passed;
