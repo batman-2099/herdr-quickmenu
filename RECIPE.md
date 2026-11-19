@@ -20,7 +20,7 @@ Open selected URL accepts one complete HTTP(S) URL and launches the local defaul
 
 Copy queues popup closure, focus of the clicked terminal, then native terminal.copy. Paste and Select all act on that terminal. Never simulate Ctrl+C, since it may interrupt a running program. Terminal-owned selections and application-owned highlights differ: in mouse-capturing applications, instruct the user to try Shift-drag and Shift-right-click, without claiming that internal application selection is accessible.
 
-Open local folder in Dolphin uses the clicked terminal's foreground process cwd or its matching pane's live cwd, after confirming local machine ownership and a local absolute path. Neither the terminal's launch cwd nor the space's starting folder is a substitute.
+Open the clicked terminal's foreground process cwd or its matching pane's live cwd in the host file manager: Dolphin on Linux/KDE, Finder on macOS, File Explorer on Windows. Require local machine ownership and a local absolute path. On Windows accept drive-rooted paths, not UNC, device, or WSL paths. Neither the terminal's launch cwd nor the space's starting folder is a substitute.
 
 ## Built from
 
@@ -30,11 +30,11 @@ Start from Herdr's shipped menu, preserving its applicable original actions and 
 
 Set manifest placement to none. In an existing personal layout, merge the top-level property `"terminal_menu": "selected-actions-menu"`. Clone a shipped layout first if necessary, but distribute no layouts directory and do not replace the user's whole layout. No keybinding changes are required.
 
-Herdr must write both the sentinel and the fresh native copy. On KWin/Wayland, writing the sentinel through Klipper advances the clipboard serial past the click that authorizes Herdr's Copy. Use Klipper read-only to confirm publication of the marker; take selection text only from the live clipboard while focus and selection still match. Attempt to restore prior text only if the sentinel remains. Launch through kstart with literal arguments to xdg-open or Dolphin, never a shell string.
+Herdr must write both the sentinel and the fresh native copy. On KWin/Wayland, writing the sentinel through Klipper advances the clipboard serial past the click that authorizes Herdr's Copy. Use Klipper read-only to confirm publication on KDE; on macOS and Windows verify the marker through Herdr's clipboard API. Take selection text only from the live clipboard while focus and selection still match. Attempt to restore prior text only if the sentinel remains. Never interpolate paths, URLs or selections into command source.
 
 ## Watch out
 
-- Target Linux/KDE with Klipper, qdbus6, kstart, xdg-open, and Dolphin. Do not advertise macOS, Windows, or generic Linux compatibility without adapting and testing these dependencies.
+- Preserve the verified KDE launch path (`kstart` with `xdg-open` or Dolphin). On macOS and Windows use Herdr's native default-browser opener. Open Finder or invoke Windows PowerShell's `Invoke-Item` with the validated folder as the process working directory. Test on each desktop before claiming interactive support.
 - Read the installed AGENTS.md and API declarations. API compatibility and the presence of referenced icons must be checked on the destination.
 - Render success, mocked dispatch, and a native mod check do not establish clipboard success. Background probes have failed while the user reported interactive URL opening worked.
 - Copy was reported working in a plain terminal, but not with normal Hermes-owned highlighting. Shift-selection remains an interactive acceptance test, not a proven fix.

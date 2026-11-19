@@ -19,7 +19,7 @@ Live official gallery checked on 2026-11-19: `https://herdr.dev/mods` redirects 
 - [x] Upstream licensing verified against Herdr v0.1.16, commit `034f8b85f7e6bb71f8ff55cb4a80c548b2578c0f`: Apache-2.0. LICENSE copied verbatim, provenance and relevant icon notices in NOTICE, modified source and manifest marked.
 - [x] Installed shipped menu matched the pinned upstream source byte-for-byte during initial preparation. The active custom mod was backed up before the clipboard and cwd fixes were installed.
 - [x] Herdr 0.1.16 native checks passed for both the packaged mod and the installed copy.
-- [x] 49 validation cases passed, including delayed clipboard publication/delivery, refusal on timeout or focus loss, and cwd changes after launch. Clipboard cases use synthetic text.
+- [x] 60 validation cases passed in Herdr 0.1.16 on Linux, including drive-rooted Windows paths, UNC/device/WSL refusal, macOS paths, delayed clipboard delivery, focus loss, and cwd changes. Clipboard cases use synthetic text. The cross-platform package passed `herdr-app check` on Linux.
 - [x] Foreground retest by the user: Open URL opened the selected URL, DuckDuckGo showed the selected query, and Dolphin opened the current directory after `cd`.
 - [x] Foreground retest by the user: Copy pane ID copied the clicked pane ID. A native-runtime fixture separately checked both ID values (including machine prefixes), expand/collapse dispatch, and refusal after target or zoom state changed.
 - [x] Runtime dependencies present: `qdbus6`, `kstart`, `xdg-open`, Dolphin. Klipper's D-Bus interface responds; no private clipboard data needed for this check.
@@ -28,6 +28,7 @@ Live official gallery checked on 2026-11-19: `https://herdr.dev/mods` redirects 
 
 ## Still unverified / not claimed working
 
+- [ ] On **both macOS and Windows**, load the package and select a known URL and a distinct search phrase with unrelated disposable text already on the clipboard. Verify the default browser gets only the selection. After `cd` to a folder with spaces and punctuation, confirm Finder/File Explorer opens that exact directory. Confirm remote folders remain disabled.
 - [ ] Remaining foreground actions on the exact package: Copy terminal ID, Copy/Paste/Select all, split, expand/collapse, and close.
 - [ ] Shift-drag and Shift-right-click inside mouse-capturing applications. Copy was user-reported working in a plain terminal, not on normal Hermes-owned highlights. This workaround is documented, not proven here.
 - [ ] Live no-selection and stale-target refusal: remove a parent while “Send back” is highlighted, move a terminal between panes, and change focus during extraction. Check model panes, layout blocks, and temporarily shown terminals separately.

@@ -4,7 +4,7 @@ An expanded terminal right-click menu for Herdr Desktop, adapted from its shippe
 
 ![Herdr QuickMenu](preview.png)
 
-Experimental Linux/KDE mod. The preview shows the live terminal menu with no text selected, so the URL and search actions are disabled.
+The preview shows the Linux/KDE menu with no text selected. The same mod now targets macOS and Windows; their desktop integrations have not yet been tested on those systems.
 
 ## Included actions
 
@@ -12,12 +12,18 @@ Experimental Linux/KDE mod. The preview shows the live terminal menu with no tex
 - Search selected text with DuckDuckGo
 - Copy, Paste, Select all
 - Copy the clicked terminal ID or model pane ID, without selecting text. Remote IDs retain their machine prefix.
-- Open a known local terminal folder in Dolphin
+- Open the clicked terminal’s current local folder in Dolphin, Finder, or File Explorer
 - Split right/down, expand or collapse the clicked pane, and close
 
 ## Requirements and limitations
 
-This implementation targets Linux/KDE. URL/search extraction uses `qdbus6` and the running Klipper service; GUI launches use `kstart`, `xdg-open`, and `dolphin`. Herdr's `workspace-chrome` icon assets are referenced.
+| Desktop | URL and search | Local folder |
+|---|---|---|
+| Linux/KDE | `qdbus6` and running Klipper for copy verification; `kstart` and `xdg-open` for the browser | Dolphin via `kstart` |
+| macOS | Herdr’s clipboard and default-browser APIs | Finder via `/usr/bin/open` |
+| Windows | Herdr’s clipboard and default-browser APIs | File Explorer via built-in Windows PowerShell (`powershell.exe`) |
+
+No OS setting is needed. On Windows, only drive-rooted paths such as `C:\Projects` are accepted; UNC shares, device paths, and untranslated WSL paths are refused. The menu uses Herdr’s installed `workspace-chrome` icons.
 
 Copy operates on Herdr's terminal selection, not an application's internal selection. In mouse-capturing programs, hold Shift while dragging to create a terminal selection, then Shift-right-click for the menu. The user reported Copy works in a plain terminal but not with normal Hermes-owned highlighting; the Shift-selection workaround still needs interactive confirmation. Native loading checks do not prove clipboard delivery. URL opening was reported working interactively, while automated selection/clipboard tests were inconclusive.
 
@@ -27,9 +33,7 @@ The menu rechecks the displayed action before running it. If a highlighted actio
 
 ## Install
 
-Read the destination's `~/.config/herdr-app/AGENTS.md` first. Back up an existing same-named mod before replacing it.
-
-Copy `mods/selected-actions-menu/` into `~/.config/herdr-app/mods/`. The internal folder name is retained for compatibility with the installed implementation.
+Find the app home reported by `herdr-app --help` (or use your `HERDR_APP_HOME` override). Read its `AGENTS.md` and back up any same-named mod. Copy the `mods/selected-actions-menu/` directory from this repository into the app home’s `mods/` directory; keep its name unchanged.
 
 Add this top-level property to a personal layout (clone a shipped layout before editing):
 
@@ -37,10 +41,10 @@ Add this top-level property to a personal layout (clone a shipped layout before 
 "terminal_menu": "selected-actions-menu"
 ```
 
-Do not replace the whole destination layout. Check the installed mod:
+Do not replace the whole destination layout. From the app home directory, check the installed mod on any platform:
 
-```sh
-herdr-app check "$HOME/.config/herdr-app/mods/selected-actions-menu"
+```text
+herdr-app check ./mods/selected-actions-menu
 ```
 
 Then test selection, Copy/Paste, URL opening, and local-folder opening interactively. To disable, remove the `terminal_menu` property to return to the built-in menu.
@@ -66,7 +70,7 @@ The runner exercises the validation cases in a temporary, undocked mod using Her
 
 ## Privacy and security
 
-No analytics, background polling, or startup network request. On an explicit URL or search action, Herdr writes a clipboard sentinel, checks that Klipper saw it, then requests native Copy. The mod reads the replacement from Herdr's live clipboard, not Klipper history. Another writer can race the copy: the browser could open an unrelated URL or send unrelated text to DuckDuckGo.
+No analytics, background polling, or startup network request. On an explicit URL or search action, Herdr writes a clipboard sentinel and waits to read it back before requesting native Copy. On KDE, Klipper must also confirm publication. The mod reads the replacement from Herdr's live clipboard, never from history. Another writer can race the copy: the browser could open an unrelated URL or send unrelated text to DuckDuckGo.
 
 On failure, Herdr attempts to restore previous text only if its sentinel is still on the clipboard. Previous text is not passed to a process as an argument. The check and write are not atomic; non-text formats and clipboard history are not restored. Do not use these actions with sensitive clipboard contents.
 

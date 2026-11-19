@@ -10,7 +10,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, notify } from "herdr";
-import { currentItem, matchesPane, searchURL, localFolder, selectedText, queueFocus, focusTarget, launchURL, openFolder } from "./actions.js";
+import { currentItem, matchesPane, searchURL, localFolder, folderManager, selectedText, queueFocus, focusTarget, launchURL, openFolder } from "./actions.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -51,7 +51,7 @@ function items(p, git) {
         ["Select all", "selected.all", tg, !!term],
         ["Copy terminal ID", "selected.copy_id", { id: tg.terminal }, !!term],
         ...(pane ? [["Copy pane ID", "selected.copy_id", { id: tg.pane }]] : []),
-        ["Open local folder in Dolphin", "selected.folder", tg, !!pane && !!localFolder(tg, allPanes, spaces(), all)],
+        [`Open local folder in ${folderManager}`, "selected.folder", tg, !!pane && !!localFolder(tg, allPanes, spaces(), all)],
         ...(pane
           ? [
               ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
@@ -151,8 +151,8 @@ export default class Menu extends View {
       cx.notify();
       cx.spawn(async (cx) => {
         try {
-          if (it[1] === "selected.url") await launchURL(await selectedText(it[2], cx));
-          else if (it[1] === "selected.search") await launchURL(searchURL(await selectedText(it[2], cx)));
+          if (it[1] === "selected.url") await launchURL(await selectedText(it[2], cx), cx);
+          else if (it[1] === "selected.search") await launchURL(searchURL(await selectedText(it[2], cx)), cx);
           else if (it[1] === "selected.folder") await openFolder(it[2]);
           else if (it[1] === "selected.all" || it[1] === "selected.paste") {
             await focusTarget(it[2], cx);
