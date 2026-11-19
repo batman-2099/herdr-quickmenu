@@ -2,6 +2,18 @@
 import { URL } from "url";
 import { terminals, panes, spaces, focused, run, exec } from "herdr";
 
+// Labels distinguish destinations (e.g. a parent); arguments distinguish commands
+// such as split and worktree. Enabled state is read from the live row instead.
+export function currentItem(shown, rows) {
+  return shown && rows.find(([label, command, args]) => command === shown[1] &&
+    label === shown[0] && JSON.stringify(args) === JSON.stringify(shown[2]));
+}
+
+export function matchesPane(target, allPanes) {
+  const pane = allPanes.find(p => p.pane === target.pane);
+  return pane ? target.modelPane !== false && pane.terminal === target.terminal : !target.modelPane;
+}
+
 export function safeURL(text) {
   const value = String(text ?? "").trim();
   if (!/^https?:\/\//i.test(value) || /[\s\u0000-\u001f\u007f\\]/.test(value))
@@ -40,24 +52,39 @@ export function selectionOf(terminal) {
   return terminals().find(t => t.address === terminal)?.selection ?? null;
 }
 
+export function queueFocus(target) {
+  run("pane.focus", target.modelPane ? { pane: target.pane } : { terminal: target.terminal });
+}
+
+function hasFocus(target) {
+  const now = focused();
+  return now?.terminal === target.terminal && (!now.shown || now.shown === target.terminal) &&
+    (target.modelPane === undefined || now.pane === (target.modelPane ? target.pane : null));
+}
+
 export async function focusTarget(target, cx) {
-  if (!target?.terminal || !terminals().some(t => t.address === target.terminal))
+  if (!target?.terminal || !matchesPane(target, panes()) || !terminals().some(t => t.address === target.terminal))
     throw new Error("That terminal is no longer available.");
-  run("pane.focus", { terminal: target.terminal });
+  queueFocus(target);
   cx.notify();
   // run queues app commands. Let the foreground executor apply focus first.
   await cx.sleep(40);
-  if (focused()?.terminal !== target.terminal)
+  if (!hasFocus(target))
     throw new Error("Could not focus the clicked terminal; nothing was sent.");
+}
+
+export async function restoreIfPending(clipboard, marker, previous) {
+  if (await clipboard("getClipboardContents") === marker)
+    await clipboard("setClipboardContents", [previous]);
 }
 
 export async function selectedText(target, cx) {
   const selection = selectionOf(target?.terminal);
   if (!selection) throw new Error("Select text in this terminal first (Shift-drag if its program captures the mouse).");
   const signature = JSON.stringify(selection);
+  const stillSelected = () => hasFocus(target) && JSON.stringify(selectionOf(target.terminal)) === signature;
   await focusTarget(target, cx);
-  if (JSON.stringify(selectionOf(target.terminal)) !== signature)
-    throw new Error("The selection changed; select it again.");
+  if (!stillSelected()) throw new Error("Focus or selection changed; select it again.");
   // This API exposes endpoints, not text. Use KDE's installed clipboard
   // service for a verified sentinel round trip: native context clipboard writes
   // did not reliably persist in background Wayland tests. Never use PRIMARY or
@@ -72,8 +99,8 @@ export async function selectedText(target, cx) {
   await clipboard("setClipboardContents", [marker]);
   if (await clipboard("getClipboardContents") !== marker)
     throw new Error("Clipboard verification failed. Nothing was opened.");
-  if (focused()?.terminal !== target.terminal || JSON.stringify(selectionOf(target.terminal)) !== signature) {
-    await clipboard("setClipboardContents", [previous]);
+  if (!stillSelected()) {
+    await restoreIfPending(clipboard, marker, previous);
     throw new Error("Focus or selection changed. Nothing was opened.");
   }
   run("terminal.copy");
@@ -81,10 +108,10 @@ export async function selectedText(target, cx) {
   await cx.sleep(80);
   const text = await clipboard("getClipboardContents");
   if (text === marker || !text) {
-    if (text === marker) await clipboard("setClipboardContents", [previous]);
+    if (text === marker) await restoreIfPending(clipboard, marker, previous);
     throw new Error("The selected text could not be copied. Nothing was opened.");
   }
-  if (focused()?.terminal !== target.terminal || JSON.stringify(selectionOf(target.terminal)) !== signature)
+  if (!stillSelected())
     throw new Error("Focus or selection changed while copying. Nothing was opened.");
   return text;
 }

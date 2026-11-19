@@ -12,7 +12,7 @@ A theme-following native popup, not a permanent panel. Group URL opening and Duc
 
 ## How it behaves
 
-The menu belongs to the terminal that was right-clicked, not whichever terminal later happens to be active. Keep the clicked pane and terminal identifiers from menu props. Preserve Up/Down, Enter, and Escape behavior.
+The menu belongs to the terminal that was right-clicked, not whichever terminal later happens to be active. Keep the clicked pane and terminal identifiers and distinguish model panes from layout blocks when the popup opens. Preserve Up/Down, Enter, and Escape behavior. Recheck the chosen action and its arguments, not its old row number, before dispatch.
 
 Open selected URL accepts one complete HTTP(S) URL and launches the local default browser. Reject credentials in the authority, unsupported schemes, whitespace, control characters, and malformed URLs. Search explicitly sends the selected text, URI-encoded, to DuckDuckGo; reject empty or excessively long input.
 

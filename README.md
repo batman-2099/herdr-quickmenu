@@ -22,6 +22,8 @@ Copy operates on Herdr's terminal selection, not an application's internal selec
 
 Browser/search actions are explicit clicks; search sends the selected text to DuckDuckGo. HTTP(S) URLs with embedded credentials are rejected. Remote folders are not opened locally.
 
+The menu rechecks the displayed action before running it. If a highlighted action disappears, Enter does nothing until you choose another row. Model-pane actions require the clicked pane to still own the clicked terminal; a different terminal temporarily shown in that pane is not proof of ownership. Layout terminal blocks do not offer pane controls.
+
 ## Install
 
 Read the destination's `~/.config/herdr-app/AGENTS.md` first. Back up an existing same-named mod before replacing it.
@@ -47,7 +49,7 @@ Then test selection, Copy/Paste, URL opening, and local-folder opening interacti
 - `main.js`: menu UI and action dispatch
 - `actions.js`: selection extraction, validation, and launch helpers
 - `mod.json`: mod manifest
-- `validation-tests.js`: URL, search, and local-folder validation tests
+- `validation-tests.js`: dispatch, clipboard restoration, URL, search, and local-folder validation cases
 - `tests/run.py`: standalone runner using Herdr's actual JavaScript runtime
 
 ## Tests
@@ -59,11 +61,13 @@ python3 tests/run.py
 herdr-app check "$PWD/mods/selected-actions-menu"
 ```
 
-The runner executes 32 validation tests in a temporary, undocked mod using Herdr's runtime. It deliberately emits a completion diagnostic because native checks suppress console output; only that exact diagnostic is accepted as success. Assertion failures fail the runner. It does not test clipboard delivery, browser launches, focus timing, or GUI interactions. See HERDR-DEV-CHECKLIST.md for the open interactive tests.
+The runner exercises the validation cases in a temporary, undocked mod using Herdr's runtime. It deliberately emits a completion diagnostic because native checks suppress console output; only that diagnostic with a valid results list is accepted as success. Clipboard restoration cases use in-memory text, not Klipper. See HERDR-DEV-CHECKLIST.md for foreground checks.
 
 ## Privacy and security
 
-No analytics, background polling, or startup network request. Explicit browser/search actions run local programs and send selected data to the browser (DuckDuckGo for search). Selection extraction temporarily overwrites the system clipboard with a sentinel, then requests native Copy. The previous text is restored only on specific failure paths; non-text clipboard formats and clipboard history are not preserved. Do not use this workflow with sensitive clipboard contents. Concurrent clipboard writers can race the sentinel check; it cannot cryptographically establish which program wrote the replacement.
+No analytics, background polling, or startup network request. Browser/search actions temporarily overwrite the system clipboard with a sentinel, request native Copy, and read the result. Another writer can replace the sentinel: the browser could open an unrelated URL or send unrelated text to DuckDuckGo without another prompt.
+
+On certain failures the mod re-reads the clipboard and restores the previous text only if it still sees its sentinel. The check and write are not atomic. Restoration passes the previous text as a `qdbus6` process argument, potentially visible to other local processes. Non-text formats and clipboard history are not restored. Do not use these actions with sensitive clipboard contents.
 
 The default terminal-menu integration does not execute Git or contact remote machines. Inherited space-menu code can run read-only Git commands if another mod explicitly opens this as a space menu; that is not the advertised integration. No local configuration, editor declarations, diagnostic dumps, or installed icon files are distributed.
 

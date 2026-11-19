@@ -10,7 +10,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, notify } from "herdr";
-import { safeURL, searchURL, localFolder, selectedText, focusTarget, launchURL, openFolder } from "./actions.js";
+import { currentItem, matchesPane, searchURL, localFolder, selectedText, queueFocus, focusTarget, launchURL, openFolder } from "./actions.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -33,13 +33,14 @@ function items(p, git) {
     case "pane": {
       // A kept sub-agent can go back under its parent, still running.
       const all = terminals();
-      const term = all.find((t) => t.address === tg.terminal);
+      const allPanes = panes();
+      const term = matchesPane(tg, allPanes) && all.find((t) => t.address === tg.terminal);
       const parent = term?.parent && all.find((t) => t.address === term.parent);
       // Once they go to the program, Shift+right-click still opens this menu.
       const toProgram = term?.labels?.["herdr.right-click"] === "program";
       // A terminal shown outside a tab (a layout terminal block, a window) has
       // no pane to split, zoom or close: its pane is the block's id.
-      const inTab = panes().some((pane) => pane.pane === tg.pane);
+      const inTab = tg.modelPane && term;
       return [
         ["Open selected URL in browser", "selected.url", tg, !!term?.selection],
         ["Search selected text (DuckDuckGo)", "selected.search", tg, !!term?.selection],
@@ -48,7 +49,7 @@ function items(p, git) {
         ["Copy", "selected.copy", tg, !!term],
         ["Paste", "selected.paste", tg, !!term],
         ["Select all", "selected.all", tg, !!term],
-        ["Open local folder in Dolphin", "selected.folder", tg, !!localFolder(tg)],
+        ["Open local folder in Dolphin", "selected.folder", tg, !!inTab && !!localFolder(tg, allPanes, spaces(), all)],
         ...(inTab
           ? [
               ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
@@ -107,11 +108,14 @@ function shortcut(name, args) {
 
 export default class Menu extends View {
   init(_props, cx) {
-    this.at = 0;
     this.git = null;
     this.handle = cx.focus_handle();
     this.handle.focus();
     const p = props();
+    // Remember whether the click was in a model pane: a vanished pane must
+    // not be reclassified as a layout block on the next redraw.
+    this.menu = p?.tab === "pane" ? { ...p, target: { ...p.target,
+      modelPane: panes().some(pane => pane.pane === p.target?.pane) } } : p;
     const space = p?.tab === "space" && spaces().find((s) => s.id === p.target?.id);
     const folder = space && place(space);
     if (folder)
@@ -121,15 +125,16 @@ export default class Menu extends View {
       });
   }
 
-  choose(i, cx) {
-    const it = items(props(), this.git)[i];
-    if (!it || it[3] === false || this.busy) return;
+  choose(shown, cx) {
+    if (!shown || shown[3] === false || this.busy) return;
+    const it = currentItem(shown, items(this.menu, this.git));
+    if (!it || it[3] === false) return;
     if (it[1] === "selected.copy") {
       // Match the shipped menu: close the keyboard-owning popup before
       // dispatching. Queue the clicked target and Copy in the same callback;
       // an async task must not retain the popup while copying.
       closeOverlay(props()?.overlay);
-      run("pane.focus", { terminal: it[2].terminal });
+      queueFocus(it[2]);
       run("terminal.copy");
       return;
     }
@@ -139,14 +144,14 @@ export default class Menu extends View {
       cx.notify();
       cx.spawn(async (cx) => {
         try {
-          if (it[1] === "selected.url") await launchURL(safeURL(await selectedText(it[2], cx)));
+          if (it[1] === "selected.url") await launchURL(await selectedText(it[2], cx));
           else if (it[1] === "selected.search") await launchURL(searchURL(await selectedText(it[2], cx)));
           else if (it[1] === "selected.folder") await openFolder(it[2]);
-          else {
+          else if (it[1] === "selected.all" || it[1] === "selected.paste") {
             await focusTarget(it[2], cx);
-            if (it[1] === "selected.all") run("terminal.select_all", { terminal: it[2].terminal });
-            else run("terminal.paste");
-          }
+            if (it[1] === "selected.paste") run("terminal.paste");
+            else run("terminal.select_all", { terminal: it[2].terminal });
+          } else throw new Error("Unknown terminal menu action.");
           closeOverlay(overlay);
         } catch (error) {
           this.busy = false;
@@ -164,7 +169,10 @@ export default class Menu extends View {
 
   render(cx) {
     const t = theme();
-    const list = items(props(), this.git);
+    const list = items(this.menu, this.git);
+    this.highlight ??= list[0];
+    const selected = currentItem(this.highlight, list);
+    const at = list.indexOf(selected);
     return v_flex()
       .id("menu")
       .track_focus(this.handle)
@@ -174,9 +182,9 @@ export default class Menu extends View {
       .bg(t.popover)
       .text_size(12.8)
       .on_key_down((e, cx) => {
-        if (e.key === "down") this.at = (this.at + 1) % list.length;
-        else if (e.key === "up") this.at = (this.at + list.length - 1) % list.length;
-        else if (e.key === "enter") this.choose(this.at, cx);
+        if (e.key === "down") this.highlight = list[(at + 1) % list.length];
+        else if (e.key === "up") this.highlight = list[at <= 0 ? list.length - 1 : at - 1];
+        else if (e.key === "enter") this.choose(selected, cx);
         else if (e.key === "escape") closeOverlay(props().overlay);
         else return;
         cx.notify();
@@ -186,7 +194,7 @@ export default class Menu extends View {
           v_flex()
             .when(i > 0 && (it[1] === "selected.copy" || it[1] === "selected.folder" || (it[1] === "pane.split" && list[i - 1][1] !== "pane.split") || it[1].endsWith(".close") || it[1] === "app.help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(7).my(4).h(1).bg(t.border)))
             .child(h_flex()
-            .id(`mi-${i}`)
+            .id(`mi-${it[0]}`)
             .h(31)
             .px(8)
             .gap(9)
@@ -194,9 +202,9 @@ export default class Menu extends View {
             .items_center()
             .justify_between()
             .text_color(it[3] === false || this.busy ? t.dim : t.foreground)
-            .when(i === this.at, (el) => el.bg(t.selected))
+            .when(it === selected, (el) => el.bg(t.selected))
             .hover((s) => s.bg(t.hover))
-            .on_click((_e, cx) => this.choose(i, cx))
+            .on_click((_e, cx) => this.choose(it, cx))
             .child(svg(menuIcon(it[1])).size(14).flex_none().text_color(t.muted))
             .child(div().flex_1().child(it[0]))
             .child(div().text_size(11).text_color(t.dim).child(it[1].startsWith("selected.") ? "" : shortcut(it[1], it[2])))),
