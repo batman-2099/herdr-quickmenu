@@ -1,0 +1,7 @@
+*.d.ts
+jsconfig.json
+__pycache__/
+*.pyc
+*.error
+.env*
+node_modules/

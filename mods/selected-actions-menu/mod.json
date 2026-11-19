@@ -1,0 +1,9 @@
+{
+  "_notice": "Modified from Herdr v0.1.16: popup dimensions and clone metadata; see NOTICE.",
+  "place": "none",
+  "overlay": { "width": 390, "height": 425 },
+  "cloned_from": {
+    "name": "menu",
+    "version": "0.1.16"
+  }
+}
