@@ -24,9 +24,9 @@ with tempfile.TemporaryDirectory(prefix="quickmenu-tests-", dir=base) as temp:
     (folder / "main.js").write_text('''
 import { View, div } from "gpui-kit";
 import { validate } from "./validation-tests.js";
+const passed = await validate();
 export default class Validation extends View {
   init() {
-    const passed = validate();
     if (!passed.length) throw new Error("No tests executed");
     // check suppresses console output. A deliberate terminal diagnostic makes
     // completion observable; the runner accepts only this exact result marker.
