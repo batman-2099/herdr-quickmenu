@@ -8,11 +8,13 @@ The preview is a privacy-reviewed crop of the actual live menu in its no-selecti
 
 ## What you see
 
-A theme-following native popup, not a permanent panel. Group URL opening and DuckDuckGo search first; Copy, Paste, and Select all next; a local-folder action next; then the existing split, zoom, right-click-routing, parent-terminal, and close actions where applicable. Use a 390px-wide popup with a 425px height allowance, 5px outer padding, 31px rows, 12.8px labels, 14px shipped workspace-chrome icons, 7px row radii, subtle 1px separators, and keyboard navigation. Use theme popover, foreground, dim, muted, selected, hover and border colors. Invalid actions are disabled. Error notifications explain refused operations.
+A theme-following native popup, not a permanent panel. Group URL and DuckDuckGo first; clipboard actions (including Copy terminal ID and Copy pane ID) next; the local folder next; then split, expand/collapse, right-click routing, parent-terminal, and close where applicable. Use a 390px-wide popup with a 490px height allowance, 5px outer padding, 31px rows, 12.8px labels, 14px shipped workspace-chrome icons, 7px row radii, subtle 1px separators, and keyboard navigation. Use theme popover, foreground, dim, muted, selected, hover and border colors. Invalid actions are disabled. Error notifications explain refused operations.
 
 ## How it behaves
 
 The menu belongs to the terminal that was right-clicked, not whichever terminal later happens to be active. Keep the clicked pane and terminal identifiers and distinguish model panes from layout blocks when the popup opens. Preserve Up/Down, Enter, and Escape behavior. Recheck the chosen action and its arguments, not its old row number, before dispatch.
+
+Copy IDs verbatim from the clicked target, never from the active terminal or its selection. Show Copy pane ID only for a matching model pane. Label Herdr's zoom toggle Expand pane or Collapse pane from that pane's live zoom state. These actions use Herdr APIs; the interaction reference is [Orca's terminal context menu](https://github.com/stablyai/orca/blob/b4101397f8f0021f5894b093b68f83895223aa95/src/renderer/src/components/terminal-pane/context-menu/TerminalContextMenu.tsx).
 
 Open selected URL accepts one complete HTTP(S) URL and launches the local default browser. Reject credentials in the authority, unsupported schemes, whitespace, control characters, and malformed URLs. Search explicitly sends the selected text, URI-encoded, to DuckDuckGo; reject empty or excessively long input.
 

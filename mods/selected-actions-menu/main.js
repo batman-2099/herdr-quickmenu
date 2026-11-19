@@ -40,7 +40,7 @@ function items(p, git) {
       const toProgram = term?.labels?.["herdr.right-click"] === "program";
       // A terminal shown outside a tab (a layout terminal block, a window) has
       // no pane to split, zoom or close: its pane is the block's id.
-      const inTab = tg.modelPane && term;
+      const pane = tg.modelPane && term && allPanes.find(p => p.pane === tg.pane);
       return [
         ["Open selected URL in browser", "selected.url", tg, !!term?.selection],
         ["Search selected text (DuckDuckGo)", "selected.search", tg, !!term?.selection],
@@ -49,12 +49,14 @@ function items(p, git) {
         ["Copy", "selected.copy", tg, !!term],
         ["Paste", "selected.paste", tg, !!term],
         ["Select all", "selected.all", tg, !!term],
-        ["Open local folder in Dolphin", "selected.folder", tg, !!inTab && !!localFolder(tg, allPanes, spaces(), all)],
-        ...(inTab
+        ["Copy terminal ID", "selected.copy_id", { id: tg.terminal }, !!term],
+        ...(pane ? [["Copy pane ID", "selected.copy_id", { id: tg.pane }]] : []),
+        ["Open local folder in Dolphin", "selected.folder", tg, !!pane && !!localFolder(tg, allPanes, spaces(), all)],
+        ...(pane
           ? [
               ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
               ["Split down", "pane.split", { direction: "down", pane: tg.pane }],
-              ["Zoom", "pane.zoom", { pane: tg.pane }],
+              [pane.zoomed ? "Collapse pane" : "Expand pane", "pane.zoom", { pane: tg.pane }],
             ]
           : []),
         ...(term
@@ -65,7 +67,7 @@ function items(p, git) {
             ]
           : []),
         ...(parent ? [[`Send back to ${parent.name || parent.address}`, "terminal.park", { terminal: term.address }]] : []),
-        ...(inTab ? [["Close pane", "pane.close", { pane: tg.pane }]] : []),
+        ...(pane ? [["Close pane", "pane.close", { pane: tg.pane }]] : []),
       ];
     }
     case "tab":
@@ -129,6 +131,11 @@ export default class Menu extends View {
     if (!shown || shown[3] === false || this.busy) return;
     const it = currentItem(shown, items(this.menu, this.git));
     if (!it || it[3] === false) return;
+    if (it[1] === "selected.copy_id") {
+      cx.write_to_clipboard(it[2].id);
+      closeOverlay(props()?.overlay);
+      return;
+    }
     if (it[1] === "selected.copy") {
       // Match the shipped menu: close the keyboard-owning popup before
       // dispatching. Queue the clicked target and Copy in the same callback;

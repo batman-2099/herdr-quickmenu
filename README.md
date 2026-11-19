@@ -4,15 +4,16 @@ An expanded terminal right-click menu for Herdr Desktop, adapted from its shippe
 
 ![Herdr QuickMenu](preview.png)
 
-Experimental Linux/KDE mod. The preview is a crop of the real live menu with no text selected; disabled browser/search entries are intentional.
+Experimental Linux/KDE mod. The preview shows the live terminal menu with no text selected, so the URL and search actions are disabled.
 
 ## Included actions
 
 - Open a selected HTTP(S) URL in the default browser
 - Search selected text with DuckDuckGo
 - Copy, Paste, Select all
+- Copy the clicked terminal ID or model pane ID, without selecting text. Remote IDs retain their machine prefix.
 - Open a known local terminal folder in Dolphin
-- Existing split, zoom, and close actions
+- Split right/down, expand or collapse the clicked pane, and close
 
 ## Requirements and limitations
 
