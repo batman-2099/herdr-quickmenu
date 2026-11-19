@@ -1,4 +1,5 @@
 import { safeURL, searchURL, localFolder, currentItem, matchesPane, waitForClipboard, restoreIfPending } from "./actions.js";
+import { platform } from "os";
 export async function validate() {
   const passed = [];
   function test(name, fn) { fn(); passed.push(name); }
@@ -23,7 +24,8 @@ export async function validate() {
     ["Split", "pane.split", {pane:"p1", direction:"right"}]
   ]), undefined));
   const target = { pane: "p1", terminal: "t1" };
-  const panes = [{pane:"p1", terminal:"t1", tab:"tab1", cwd:"/old"}];
+  const root = platform() === "windows" ? "C:\\" : "/";
+  const panes = [{pane:"p1", terminal:"t1", tab:"tab1", cwd:root + "old"}];
   const model = {...target, modelPane:true};
   test("original pane still owns the terminal", () => eq(matchesPane(model, panes), true));
   test("terminal moved to another pane", () => eq(matchesPane(model, [
@@ -33,7 +35,7 @@ export async function validate() {
   test("layout block may show a model terminal", () => eq(matchesPane(
     {...target, pane:"block", modelPane:false}, panes), true));
   const spaces = [{machine:null, tabs:[{id:"tab1"}]}];
-  const terms = [{address:"t1", cwd:"/launch", foreground:{cwd:"/home/test/folder with ' quotes; $(id)"}}];
+  const terms = [{address:"t1", cwd:root + "launch", foreground:{cwd:root + "folder with ' quotes; $(id)"}}];
   test("foreground cwd after cd, literal punctuation", () => eq(localFolder(target, panes, spaces, terms), terms[0].foreground.cwd));
   test("pane cwd when foreground is unknown", () => eq(localFolder(target, panes, spaces,
     [{...terms[0], foreground:null}]), panes[0].cwd));
@@ -50,6 +52,22 @@ export async function validate() {
   test("relative cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"relative"}}]), null));
   test("UNC cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"//host/share"}}]), null));
   test("control cwd refused", () => eq(localFolder(target, panes, spaces, [{...terms[0],foreground:{cwd:"/a\nb"}}]), null));
+  for (const [platform, cwd, expected] of [
+    ["windows", "C:\\", "C:\\"],
+    ["windows", "D:/work/[a] & b", "D:\\work\\[a] & b"],
+    ["windows", "C:relative", null],
+    ["windows", "\\root-relative", null],
+    ["windows", "\\\\server\\share", null],
+    ["windows", "\\\\?\\C:\\work", null],
+    ["windows", "/home/in-wsl", null],
+    ["windows", "C:\\work:stream", null],
+    ["macos", "/Users/test/My Project", "/Users/test/My Project"],
+    ["macos", "//server/share", null],
+    ["macos", "D:\\work", null],
+  ]) {
+    test(`${platform} folder ${cwd}`, () => eq(localFolder(target, panes, spaces,
+      [{...terms[0], foreground:{cwd}}], platform), expected));
+  }
   const reads = ["old URL", undefined, "marker", "marker", "marker", "selected & text"];
   const cx = { read_from_clipboard: () => reads.shift(), sleep: async () => {} };
   const pending = await waitForClipboard(cx, "marker", true, () => true);

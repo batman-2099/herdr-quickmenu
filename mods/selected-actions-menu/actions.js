@@ -1,6 +1,10 @@
 // No startup work: these helpers are called only by an explicit menu action.
 import { URL } from "url";
+import { platform } from "os";
 import { terminals, panes, spaces, focused, run, exec } from "herdr";
+
+const hostOS = platform();
+export const folderManager = { linux: "Dolphin", macos: "Finder", windows: "File Explorer" }[hostOS];
 
 // Labels distinguish destinations (e.g. a parent); arguments distinguish commands
 // such as split and worktree. Enabled state is read from the live row instead.
@@ -37,7 +41,7 @@ export function searchURL(text) {
 
 // Both machine membership and the address must prove this is a local pane.
 // Never use a space's starting folder as a substitute for the live cwd.
-export function localFolder(target, allPanes = panes(), allSpaces = spaces(), allTerms = terminals()) {
+export function localFolder(target, allPanes = panes(), allSpaces = spaces(), allTerms = terminals(), os = hostOS) {
   if (!target?.terminal || target.terminal.includes("/")) return null;
   const pane = allPanes.find(p => p.pane === target.pane && p.terminal === target.terminal);
   const space = pane && allSpaces.find(s => (s.tabs ?? []).some(t => t.id === pane.tab));
@@ -45,8 +49,13 @@ export function localFolder(target, allPanes = panes(), allSpaces = spaces(), al
   // The core record's top-level cwd is the launch directory, not the cwd after cd.
   const cwd = term?.foreground?.cwd ?? pane?.cwd;
   if (!pane || !space || space.machine !== null || !term || typeof cwd !== "string" ||
-      !cwd.startsWith("/") || cwd.startsWith("//") || /[\u0000-\u001f\u007f]/.test(cwd)) return null;
-  return cwd;
+      /[\u0000-\u001f\u007f]/.test(cwd)) return null;
+  if (os === "windows") {
+    // Drive-rooted only: neither C:relative, UNC, nor a device namespace.
+    if (!/^[a-z]:[\\/]/i.test(cwd) || /[<>:"|?*]/.test(cwd.slice(2))) return null;
+    return cwd.replace(/\//g, "\\");
+  }
+  return cwd.startsWith("/") && !cwd.startsWith("//") ? cwd : null;
 }
 
 export function selectionOf(terminal) {
@@ -106,11 +115,11 @@ export async function selectedText(target, cx) {
     // serial than the menu click. Let Herdr own both writes; Klipper only
     // witnesses publication of the marker, never supplies the selected text.
     cx.write_to_clipboard(marker);
-    await waitForClipboard(cx, marker, true, stillSelected, async () => {
+    await waitForClipboard(cx, marker, true, stillSelected, hostOS === "linux" ? async () => {
       const reply = await exec("qdbus6", ["org.kde.klipper", "/klipper", "getClipboardContents"], { timeout: 3000 });
       if (reply.code !== 0) throw new Error("KDE clipboard service is unavailable. Nothing was opened.");
       return reply.stdout.replace(/\n$/, "") === marker;
-    });
+    } : undefined);
     if (!stillSelected() || cx.read_from_clipboard() !== marker)
       throw new Error("Focus, selection or clipboard changed. Nothing was opened.");
     run("terminal.copy");
@@ -122,16 +131,29 @@ export async function selectedText(target, cx) {
   }
 }
 
-export async function launchURL(url) {
-  // KDE's launcher detaches GUI programs; exec's timeout must not kill a
-  // newly started browser or Dolphin just because its window stays open.
-  const result = await exec("kstart", ["--", "xdg-open", safeURL(url)], { timeout: 10000 });
+export async function launchURL(url, cx) {
+  const address = safeURL(url);
+  if (hostOS !== "linux") {
+    cx.open_url(address);
+    return;
+  }
+  const result = await exec("kstart", ["--", "xdg-open", address], { timeout: 10000 });
   if (result.code !== 0) throw new Error("The default browser launcher failed.");
 }
 
 export async function openFolder(target) {
   const folder = localFolder(target);
-  if (!folder) throw new Error("Dolphin is available only for a known local terminal folder.");
-  const result = await exec("kstart", ["--", "dolphin", "--new-window", folder], { timeout: 10000 });
-  if (result.code !== 0) throw new Error("Dolphin could not open the local folder.");
+  if (!folder) throw new Error("The clicked terminal has no known local folder.");
+  let result;
+  if (hostOS === "windows") {
+    // Pass the path as cwd, never as PowerShell source. A missing directory
+    // prevents process startup rather than opening Explorer's default folder.
+    result = await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+      "Invoke-Item -LiteralPath (Get-Location).ProviderPath -ErrorAction Stop"], { cwd: folder, timeout: 10000 });
+  } else if (hostOS === "macos") {
+    result = await exec("/usr/bin/open", ["-b", "com.apple.finder", "."], { cwd: folder, timeout: 10000 });
+  } else {
+    result = await exec("kstart", ["--", "dolphin", "--new-window", folder], { timeout: 10000 });
+  }
+  if (result.code !== 0) throw new Error(`${folderManager} could not open the local folder.`);
 }

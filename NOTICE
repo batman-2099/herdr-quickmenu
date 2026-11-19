@@ -13,7 +13,7 @@ The additions and documentation in this distribution use Apache-2.0 as well.
 This is an unofficial community mod, not an endorsed Herdr product.
 
 Modifications: selected URL and search actions; native clipboard dispatch;
-KDE clipboard extraction; local-folder validation and Dolphin launch;
+clipboard extraction with KDE publication verification; local-folder validation and platform-specific file manager launch;
 disabled/busy states; popup dimensions; tests and documentation.
 
 Upstream THIRD-PARTY-NOTICES was inspected. This package does not bundle
